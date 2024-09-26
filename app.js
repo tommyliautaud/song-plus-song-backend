@@ -39,7 +39,7 @@ const limiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
 });
 app.use(cors({
-  origin: 'https://songplussong.vercel.app'
+  origin: 'https://song-plus-song-backend.onrender.com'
 }));
 
 app.use(express.json());
