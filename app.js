@@ -34,12 +34,27 @@ const refreshAccessToken = async () => {
   }
 };
 
+const allowedOrigins = [
+  'https://song-plus-song-frontend.vercel.app',
+  'https://song-plus-song-frontend-tommy-liautauds-projects.vercel.app',
+  'https://song-plus-song-frontend-git-main-tommy-liautauds-projects.vercel.app',
+  'https://www.songplussong.com'
+];
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
 });
+
 app.use(cors({
-  origin: 'https://song-plus-song-frontend.vercel.app'
+  origin: function (origin, callback) {
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.includes(origin) || !origin) {
+      callback(null, true); // Allow request
+    } else {
+      callback(new Error('Not allowed by CORS')); // Reject request
+    }
+  }
 }));
 
 app.use(express.json());
