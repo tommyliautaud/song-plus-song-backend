@@ -38,7 +38,7 @@ const allowedOrigins = [
   'https://song-plus-song-frontend.vercel.app',
   'https://song-plus-song-frontend-tommy-liautauds-projects.vercel.app',
   'https://song-plus-song-frontend-git-main-tommy-liautauds-projects.vercel.app',
-  'https://www.songplussong.com'
+  'https://www.songplussong.com',
 ];
 
 const limiter = rateLimit({

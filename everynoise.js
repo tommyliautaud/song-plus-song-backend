@@ -1,94 +1,94 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const sqlite3 = require('sqlite3').verbose();
 
-async function fetchGenreSimilarityData(genre, retryCount = 3, retryDelay = 1000) {
-  const formattedGenre = genre.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const url = `https://everynoise.com/everynoise1d-${formattedGenre}.html`;
-  console.log(`Fetching genre similarity data for ${genre} using URL: ${url}`);
+// Open the database connection
+const db = new sqlite3.Database(process.env.DATABASE_URL || './everynoise.db', (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to the SQLite database.');
+  }
+});
 
-  try {
-    const response = await axios.get(url, { timeout: 10000 }); // Increase timeout to 10 seconds
-    const html = response.data;
-    const $ = cheerio.load(html);
-    const genreSimilarityData = [genre];
-    $('tr').each((index, element) => {
-      const genreElement = $(element).find('a[href^="everynoise1d-"]');
-      if (genreElement.length > 0) {
-        const similarGenre = genreElement.text().trim();
-        genreSimilarityData.push(similarGenre);
+async function fetchGenreSimilarityData(genre) {
+  return new Promise((resolve, reject) => {
+    const query = `
+      SELECT g2.name AS similar_genre
+      FROM Genres g1
+      JOIN GenreSimilarities gs ON g1.id = gs.genre_id
+      JOIN Genres g2 ON gs.similar_genre_id = g2.id
+      WHERE g1.name = ?
+      ORDER BY gs.similarity_rank
+    `;
+
+    db.all(query, [genre], (err, rows) => {
+      if (err) {
+        console.error(`Error fetching similarity data for ${genre}:`, err.message);
+        reject(err);
+      } else {
+        const similarityData = [genre, ...rows.map(row => row.similar_genre)];
+        console.log(`Genre similarity data for ${genre}:`, similarityData);
+        resolve(similarityData);
       }
     });
-    console.log(`Genre similarity data for ${genre}:`, genreSimilarityData);
-    return genreSimilarityData;
-  } catch (error) {
-    console.error(`Error fetching genre similarity data for ${genre}:`, error);
-
-    if (retryCount > 0) {
-      console.log(`Retrying in ${retryDelay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-      return fetchGenreSimilarityData(genre, retryCount - 1, retryDelay * 2);
-    } else {
-      console.error(`Max retry attempts reached. Unable to fetch genre similarity data for ${genre}.`);
-      return [genre]; // Return the original genre as a fallback
-    }
-  }
+  });
 }
-  
-  function calculateSimilarityScore(genre, similarityList1, similarityList2) {
-    const rank1 = similarityList1.indexOf(genre);
-    const rank2 = similarityList2.indexOf(genre);
-  
-    if (rank1 === -1 || rank2 === -1) {
-      return 0;
-    }
-  
-    const normalizedRank1 = rank1 / (similarityList1.length - 1);
-    const normalizedRank2 = rank2 / (similarityList2.length - 1);
-  
-    const weightedAverage = (normalizedRank1 + normalizedRank2) / 2;
-    const score = 1 - weightedAverage;
-  
-    return score;
+
+function calculateSimilarityScore(genre, similarityList1, similarityList2) {
+  const rank1 = similarityList1.indexOf(genre);
+  const rank2 = similarityList2.indexOf(genre);
+
+  if (rank1 === -1 || rank2 === -1) {
+    return 0;
   }
-  
-  function findMostSimilarGenre(genre1, genre2, similarityData1, similarityData2) {
-    let maxScore = -1;
-    let mostSimilarGenres = [];
-    let rank1 = -1;
-    let rank2 = -1;
-  
-    for (const genre of similarityData1) {
-      if (similarityData2.includes(genre)) {
-        const score = calculateSimilarityScore(genre, similarityData1, similarityData2);
-        if (score > maxScore) {
-          maxScore = score;
-          mostSimilarGenres = [genre];
-          rank1 = similarityData1.indexOf(genre);
-          rank2 = similarityData2.indexOf(genre);
-        } else if (score === maxScore) {
-          mostSimilarGenres.push(genre);
-        }
+
+  const normalizedRank1 = rank1 / (similarityList1.length - 1);
+  const normalizedRank2 = rank2 / (similarityList2.length - 1);
+
+  const weightedAverage = (normalizedRank1 + normalizedRank2) / 2;
+  const score = 1 - weightedAverage;
+
+  return score;
+}
+
+function findMostSimilarGenre(genre1, genre2, similarityData1, similarityData2) {
+  let maxScore = -1;
+  let mostSimilarGenres = [];
+  let rank1 = -1;
+  let rank2 = -1;
+
+  for (const genre of similarityData1) {
+    if (similarityData2.includes(genre)) {
+      const score = calculateSimilarityScore(genre, similarityData1, similarityData2);
+      if (score > maxScore) {
+        maxScore = score;
+        mostSimilarGenres = [genre];
+        rank1 = similarityData1.indexOf(genre);
+        rank2 = similarityData2.indexOf(genre);
+      } else if (score === maxScore) {
+        mostSimilarGenres.push(genre);
       }
     }
-  
-    if (mostSimilarGenres.length > 0) {
-      const randomIndex = Math.floor(Math.random() * mostSimilarGenres.length);
-      const selectedGenre = mostSimilarGenres[randomIndex];
-      console.log(`The most similar genre to "${genre1}" and "${genre2}" is: "${selectedGenre}"`);
-      console.log(`Rank of "${selectedGenre}" in "${genre1}" similarity list: ${rank1}`);
-      console.log(`Rank of "${selectedGenre}" in "${genre2}" similarity list: ${rank2}`);
-      return selectedGenre;
-    }
-  
-    return null;
   }
-  
-  async function findMostSimilarGenreTest(genre1, genre2) {
+
+  if (mostSimilarGenres.length > 0) {
+    const randomIndex = Math.floor(Math.random() * mostSimilarGenres.length);
+    const selectedGenre = mostSimilarGenres[randomIndex];
+    console.log(`The most similar genre to "${genre1}" and "${genre2}" is: "${selectedGenre}"`);
+    console.log(`Rank of "${selectedGenre}" in "${genre1}" similarity list: ${rank1}`);
+    console.log(`Rank of "${selectedGenre}" in "${genre2}" similarity list: ${rank2}`);
+    return selectedGenre;
+  }
+
+  return null;
+}
+
+async function findMostSimilarGenreTest(genre1, genre2) {
+  try {
     const similarityData1 = await fetchGenreSimilarityData(genre1);
     const similarityData2 = await fetchGenreSimilarityData(genre2);
-  
+
     const mostSimilarGenre = findMostSimilarGenre(genre1, genre2, similarityData1, similarityData2);
-  
+
     if (mostSimilarGenre) {
       console.log(`The most similar genre to "${genre1}" and "${genre2}" is: "${mostSimilarGenre}"`);
       return mostSimilarGenre;
@@ -96,52 +96,45 @@ async function fetchGenreSimilarityData(genre, retryCount = 3, retryDelay = 1000
       console.log(`No similar genre found between "${genre1}" and "${genre2}"`);
       return null;
     }
-  }
-
-  async function fetchGenreArtists(genre) {
-  const formattedGenre = genre.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const url = `https://everynoise.com/engenremap-${formattedGenre}.html`;
-
-  try {
-    const response = await axios.get(url);
-    const html = response.data;
-    const $ = cheerio.load(html);
-
-    let artists = [];
-
-    $('div[id^="item"]').each((index, element) => {
-      const onclickText = $(element).attr('onclick');
-      
-      // Use regex to extract the artist name from the onclick attribute
-      const artistMatch = /playx\(.+?,\s*"(.*?)"\s*,/.exec(onclickText);
-      if (artistMatch && artistMatch[1]) {
-        let artistName = artistMatch[1].trim();
-        
-        // Check for "featuring" or "feat." and split into multiple artists
-        if (artistName.toLowerCase().includes('feat.')) {
-          const featuredArtists = artistName.split(/feat\.|featuring/i).map(name => name.trim());
-          artists = artists.concat(featuredArtists);
-        } else {
-          artists.push(artistName);
-        }
-      }
-    });
-
-    // Remove any duplicates (optional)
-    artists = [...new Set(artists)];
-
-    console.log(`Artists for genre ${genre}:`, artists);
-    return artists;
   } catch (error) {
-    console.error(`Error fetching artists for genre ${genre}:`, error);
-    throw error;
+    console.error('Error in findMostSimilarGenreTest:', error);
+    return null;
   }
 }
 
-  
+async function fetchGenreArtists(genre) {
+  return new Promise((resolve, reject) => {
+    const query = `
+      SELECT artist_name
+      FROM Genres g
+      JOIN GenreArtists ga ON g.id = ga.genre_id
+      WHERE g.name = ?
+    `;
 
+    db.all(query, [genre], (err, rows) => {
+      if (err) {
+        console.error(`Error fetching artists for genre ${genre}:`, err.message);
+        reject(err);
+      } else {
+        const artists = rows.map(row => row.artist_name);
+        console.log(`Artists for genre ${genre}:`, artists);
+        resolve(artists);
+      }
+    });
+  });
+}
 
-  module.exports = {
-    findMostSimilarGenreTest,
-    fetchGenreArtists,
-  };
+process.on('exit', () => {
+  db.close((err) => {
+    if (err) {
+      console.error('Error closing database connection:', err.message);
+    } else {
+      console.log('Database connection closed.');
+    }
+  });
+});
+
+module.exports = {
+  findMostSimilarGenreTest,
+  fetchGenreArtists,
+};
