@@ -6,6 +6,14 @@ const db = new sqlite3.Database(process.env.DATABASE_URL || './everynoise.db', (
     console.error('Error opening database:', err.message);
   } else {
     console.log('Connected to the SQLite database.');
+    // Create the index on the similar_genre_id column
+    db.run('CREATE INDEX IF NOT EXISTS idx_genresimilarities_similar_genre_id ON GenreSimilarities (similar_genre_id)', (err) => {
+      if (err) {
+        console.error('Error creating index:', err.message);
+      } else {
+        console.log('Index created successfully.');
+      }
+    });
   }
 });
 
