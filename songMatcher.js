@@ -25,6 +25,13 @@ async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       
+      const genres = artistResponse.data.genres;
+      const filteredGenres = genres.filter(genre => genres.includes(genre));
+
+      if (filteredGenres.length === 0) {
+        return null; // Exclude the track if none of the genres are in the available genres list
+      }
+
       return {
         id: track.id,
         name: track.name,
@@ -35,13 +42,13 @@ async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
         },
         preview_url: track.preview_url,
         external_urls: track.external_urls,
-        genres: artistResponse.data.genres
+        genres: filteredGenres
       };
     }));
 
-    // Filter tracks to only those with genres and limit to top 5
+    // Filter out tracks with no valid genres and limit to top 5
     const filteredTracks = tracksWithGenres
-      .filter(track => track.genres && track.genres.length > 0)
+      .filter(track => track !== null)
       .slice(0, 5);
 
     return filteredTracks;

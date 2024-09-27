@@ -46,7 +46,9 @@ const limiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
 });
 
-app.use(cors({
+app.use(cors());
+
+/* app.use(cors({
   origin: function (origin, callback) {
     // Check if the origin is in the allowed list
     if (allowedOrigins.includes(origin) || !origin) {
@@ -55,7 +57,7 @@ app.use(cors({
       callback(new Error('Not allowed by CORS')); // Reject request
     }
   }
-}));
+})); */
 
 app.use(express.json());
 app.use('/api/', limiter);
