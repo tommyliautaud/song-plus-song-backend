@@ -42,7 +42,8 @@ async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
         },
         preview_url: track.preview_url,
         external_urls: track.external_urls,
-        genres: filteredGenres
+        genres: filteredGenres,
+        explicit: track.explicit // Add this line
       };
     }));
 
@@ -96,12 +97,16 @@ async function getTrackData(trackId, retryCount = 3, retryDelay = 1000) {
       id: trackInfo.data.id,
       name: trackInfo.data.name,
       artists: trackInfo.data.artists.map(artist => ({ name: artist.name })),
-      album: trackInfo.data.album,
+      album: {
+        name: trackInfo.data.album.name, // Add album name
+        images: trackInfo.data.album.images,
+      },
       preview_url: trackInfo.data.preview_url,
       external_urls: trackInfo.data.external_urls,
       genres: [...new Set(genres)],
       coverArt: coverArt,
-      audioFeatures: audioFeatures.data
+      audioFeatures: audioFeatures.data,
+      explicit: trackInfo.data.explicit,
     };
   } catch (error) {
     if (retryCount > 0) {
@@ -142,9 +147,14 @@ async function getRandomSongByArtist(artistName, retryCount = 3, retryDelay = 10
           id: track.id,
           name: track.name,
           artists: track.artists.map(artist => ({ name: artist.name })),
+          album: {
+            name: track.album.name,
+            images: track.album.images,
+          },
           url: track.external_urls.spotify,
           coverArt: coverArt,
-          preview_url: track.preview_url
+          preview_url: track.preview_url,
+          explicit: track.explicit,
         };
       }
     }
@@ -202,9 +212,11 @@ async function findMatchingSongs(song1Id, song2Id) {
             song: {
               name: matchedSong.name,
               artists: matchedSong.artists,
+              album: matchedSong.album, // Include the full album object
               url: matchedSong.url,
               coverArt: matchedSong.coverArt,
-              preview_url: matchedSong.preview_url
+              preview_url: matchedSong.preview_url,
+              explicit: matchedSong.explicit
             },
             inputSongsCoverArt: [song1Data.coverArt, song2Data.coverArt],
             genreInfo: {
