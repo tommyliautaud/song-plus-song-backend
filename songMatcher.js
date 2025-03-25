@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { getAccessToken } = require('./spotifyAuth');
-const { extractSeedGenres, mapGenresToSeedGenres } = require('./genreExtractor');
 const genres = require('./genres.js');
 const { findMostSimilarGenreTest, fetchGenreArtists } = require('./everynoise.js');
 
@@ -98,7 +97,7 @@ async function getTrackData(trackId, retryCount = 3, retryDelay = 1000) {
       name: trackInfo.data.name,
       artists: trackInfo.data.artists.map(artist => ({ name: artist.name })),
       album: {
-        name: trackInfo.data.album.name, // Add album name
+        name: trackInfo.data.album.name,
         images: trackInfo.data.album.images,
       },
       preview_url: trackInfo.data.preview_url,
@@ -212,7 +211,7 @@ async function findMatchingSongs(song1Id, song2Id) {
             song: {
               name: matchedSong.name,
               artists: matchedSong.artists,
-              album: matchedSong.album, // Include the full album object
+              album: matchedSong.album, 
               url: matchedSong.url,
               coverArt: matchedSong.coverArt,
               preview_url: matchedSong.preview_url,

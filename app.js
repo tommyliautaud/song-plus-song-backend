@@ -42,33 +42,18 @@ const allowedOrigins = [
 ];
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
 });
 
 app.use(cors());
 
-/* app.use(cors({
-  origin: function (origin, callback) {
-    // Check if the origin is in the allowed list
-    if (allowedOrigins.includes(origin) || !origin) {
-      callback(null, true); // Allow request
-    } else {
-      callback(new Error('Not allowed by CORS')); // Reject request
-    }
-  }
-})); */
 
 app.use(express.json());
 app.use('/api/', limiter);
 
 const searchSpotifyThrottled = throttle(searchSpotify, 1000, { trailing: false });
 
-app.get('/auth/spotify', (req, res) => {
-  const scopes = ['user-read-private', 'user-read-email'];
-  const authorizeURL = spotifyApi.createAuthorizeURL(scopes);
-  res.redirect(authorizeURL);
-});
 
 app.get('/auth/spotify/callback', (req, res) => {
   const { code } = req.query;
