@@ -9,13 +9,13 @@ const db = new sqlite3.Database(process.env.DATABASE_URL || './everynoise.db', (
     console.error('Error opening database:', err.message);
     process.exit(1);
   } else {
-    console.log('✅ Connected to SQLite database.');
+    console.log('Connected to SQLite database.');
     generateEmbeddings(); // start the process once connected
   }
 });
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = 'text-embedding-3-small'; // or 'text-embedding-ada-002'
+const OPENAI_MODEL = 'text-embedding-3-small';
 
 async function getEmbedding(text) {
   try {
@@ -34,7 +34,7 @@ async function getEmbedding(text) {
 
     return response.data.data[0].embedding;
   } catch (err) {
-    console.error(`❌ Error generating embedding for "${text}"`, err.response?.data || err.message);
+    console.error(`Error generating embedding for "${text}"`, err.response?.data || err.message);
     throw err;
   }
 }
@@ -82,15 +82,15 @@ async function generateEmbeddings() {
       try {
         const embedding = await getEmbedding(prompt);
         await saveEmbedding(genre.id, embedding);
-        console.log(`✅ Embedded: ${genre.name}`);
+        console.log(`Embedded: ${genre.name}`);
       } catch {
-        console.log(`⚠️ Skipping: ${genre.name}`);
+        console.log(`Skipping: ${genre.name}`);
       }
 
-      await sleep(1000); // Throttle to avoid OpenAI rate limits
+      await sleep(1000);
     }
 
-    console.log('🎉 Finished embedding all genres!');
+    console.log('Finished embedding all genres');
     db.close();
   } catch (err) {
     console.error('Fatal error during embedding process:', err.message);
