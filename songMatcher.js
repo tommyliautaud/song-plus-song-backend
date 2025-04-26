@@ -247,12 +247,20 @@ async function findMatchingSongs(song1Id, song2Id) {
     let highestSim = -1;
 
     for (const { name, vector } of allEmbeddings) {
+      // If the input genres are different, skip if name matches either input genre
+      if (genre1 !== genre2 && (name === genre1 || name === genre2)) {
+        continue;
+      }
+    
       const sim = cosineSimilarity(avgVector, vector);
+    
       if (sim > highestSim) {
         highestSim = sim;
         bestMatch = name;
       }
     }
+    
+    
 
     const MostSimilarGenre = bestMatch;
     console.log(`✅ Most similar genre: ${MostSimilarGenre} (similarity: ${highestSim.toFixed(4)})`);
