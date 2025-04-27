@@ -74,7 +74,7 @@ function saveEmbedding(id, embedding) {
 async function generateEmbeddings() {
   try {
     const genres = await getGenresToEmbed();
-    console.log(`🧠 Found ${genres.length} genres to embed`);
+    console.log(`Found ${genres.length} genres to embed`);
 
     for (const genre of genres) {
       const prompt = `The music genre ${genre.name}`;
