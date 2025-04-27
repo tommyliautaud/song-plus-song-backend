@@ -2,13 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const NodeCache = require('node-cache');
-const { throttle } = require('lodash');
+const { findMatchingSongs, searchSpotify } = require('./songMatcher');  // ✅ Fix here
 const SpotifyWebApi = require('spotify-web-api-node');
-const { searchSpotify, findMatchingSongs } = require('./songMatcher');
-require('dotenv').config();
 
 const app = express();
-const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
+const cache = new NodeCache({ stdTTL: 3600 });
+
+
+
+app.set('trust proxy', 1);
 
 const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
@@ -52,7 +54,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/', limiter);
 
-const searchSpotifyThrottled = throttle(searchSpotify, 1000, { trailing: false });
+// const searchSpotifyThrottled = throttle(searchSpotify, 1000, { trailing: false });
 
 
 app.get('/auth/spotify/callback', (req, res) => {
@@ -88,14 +90,15 @@ app.get('/api/search', async (req, res) => {
       return res.json(cachedResults);
     }
 
-    const searchResults = await searchSpotifyThrottled(query);
+    const searchResults = await searchSpotify(query);
     cache.set(cacheKey, searchResults);
     res.json(searchResults);
   } catch (error) {
     console.error('Error searching Spotify:', error);
-    res.status(500).json({ error: 'An error occurred while searching Spotify' });
+    res.status(500).json({ error: 'An error occurred while searching for songs' });
   }
 });
+
 
 app.post('/api/match', async (req, res) => {
   try {

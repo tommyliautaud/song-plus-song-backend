@@ -1,180 +1,10 @@
 const axios = require('axios');
 const { getAccessToken } = require('./spotifyAuth');
-const genres = require('./genres.js');
-const { findMostSimilarGenreTest, fetchGenreArtists } = require('./everynoise.js');
-
+const { getGenresForArtist, fetchGenreArtists } = require('./everynoise.js');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+
 const db = new sqlite3.Database(path.join(__dirname, 'everynoise.db'));
-
-async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
-  try {
-    const accessToken = await getAccessToken();
-    const response = await axios.get('https://api.spotify.com/v1/search', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      params: {
-        q: query,
-        type: 'track',
-        limit: 20,
-      },
-    });
-
-    const tracks = response.data.tracks.items;
-    const tracksWithGenres = await Promise.all(tracks.map(async (track) => {
-      const artistId = track.artists[0].id;
-      const artistResponse = await axios.get(`https://api.spotify.com/v1/artists/${artistId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      
-      const genres = artistResponse.data.genres;
-      const filteredGenres = genres.filter(genre => genres.includes(genre));
-
-      if (filteredGenres.length === 0) {
-        return null; // Exclude the track if none of the genres are in the available genres list
-      }
-
-      return {
-        id: track.id,
-        name: track.name,
-        artists: track.artists.map(artist => ({ name: artist.name })),
-        album: {
-          name: track.album.name,
-          images: track.album.images
-        },
-        preview_url: track.preview_url,
-        external_urls: track.external_urls,
-        genres: filteredGenres,
-        explicit: track.explicit // Add this line
-      };
-    }));
-
-    // Filter out tracks with no valid genres and limit to top 5
-    const filteredTracks = tracksWithGenres
-      .filter(track => track !== null)
-      .slice(0, 5);
-
-    return filteredTracks;
-  } catch (error) {
-    if (retryCount > 0) {
-      console.log(`Retrying searchSpotify in ${retryDelay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      return searchSpotify(query, retryCount - 1, retryDelay * 2);
-    } else {
-      console.error('Error searching Spotify:', error);
-      throw error;
-    }
-  }
-}
-
-
-async function getTrackData(trackId, retryCount = 3, retryDelay = 1000) {
-  const accessToken = await getAccessToken();
-  try {
-    const [trackInfo, audioFeatures] = await Promise.all([
-      axios.get(`https://api.spotify.com/v1/tracks/${trackId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      }),
-      axios.get(`https://api.spotify.com/v1/audio-features/${trackId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      })
-    ]);
-
-    const artistIds = trackInfo.data.artists.map(artist => artist.id);
-    const coverArt = trackInfo.data.album.images[0].url;
-    const artistPromises = artistIds.map(artistId =>
-      axios.get(`https://api.spotify.com/v1/artists/${artistId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      })
-    );
-
-    const artistResponses = await Promise.all(artistPromises);
-    const genres = artistResponses.flatMap(response => response.data.genres);
-
-    if (!audioFeatures.data || !trackInfo.data) {
-      throw new Error('Failed to fetch track data or audio features');
-    }
-
-    return {
-      id: trackInfo.data.id,
-      name: trackInfo.data.name,
-      artists: trackInfo.data.artists.map(artist => ({ name: artist.name })),
-      album: {
-        name: trackInfo.data.album.name,
-        images: trackInfo.data.album.images,
-      },
-      preview_url: trackInfo.data.preview_url,
-      external_urls: trackInfo.data.external_urls,
-      genres: [...new Set(genres)],
-      coverArt: coverArt,
-      audioFeatures: audioFeatures.data,
-      explicit: trackInfo.data.explicit,
-    };
-  } catch (error) {
-    if (retryCount > 0) {
-      console.log(`Retrying getTrackData in ${retryDelay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      return getTrackData(trackId, retryCount - 1, retryDelay * 2);
-    } else {
-      console.error('Error in getTrackData:', error);
-      throw error;
-    }
-  }
-}
-
-async function getRandomSongByArtist(artistName, retryCount = 3, retryDelay = 1000) {
-  try {
-    const accessToken = await getAccessToken();
-    const response = await axios.get(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    if (response.data.artists.items.length > 0) {
-      const artistId = response.data.artists.items[0].id;
-
-      const trackResponse = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      if (trackResponse.data.tracks.length > 0) {
-        const track = trackResponse.data.tracks[0];
-        const allArtists = track.artists.map(artist => artist.name).join(', ');
-        const coverArt = track.album.images[0].url;
-
-        return {
-          id: track.id,
-          name: track.name,
-          artists: track.artists.map(artist => ({ name: artist.name })),
-          album: {
-            name: track.album.name,
-            images: track.album.images,
-          },
-          url: track.external_urls.spotify,
-          coverArt: coverArt,
-          preview_url: track.preview_url,
-          explicit: track.explicit,
-        };
-      }
-    }
-
-    return null;
-  } catch (error) {
-    if (retryCount > 0) {
-      console.log(`Retrying getRandomSongByArtist in ${retryDelay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      return getRandomSongByArtist(artistName, retryCount - 1, retryDelay * 2);
-    } else {
-      console.error(`Error fetching song for artist ${artistName}:`, error);
-      throw error;
-    }
-  }
-}
-
 
 // Cosine similarity between two vectors
 function cosineSimilarity(vecA, vecB) {
@@ -184,18 +14,17 @@ function cosineSimilarity(vecA, vecB) {
   return dot / (magA * magB);
 }
 
-
+// Average of two vectors
 function averageVectors(vecA, vecB) {
   return vecA.map((val, i) => (val + vecB[i]) / 2);
 }
 
-// Fetch embedding for a given genre from SQLite
+// Fetch genre embedding from database
 function getGenreEmbedding(genre) {
   return new Promise((resolve, reject) => {
     db.get(`SELECT embedding FROM Genres WHERE name = ?`, [genre], (err, row) => {
       if (err) return reject(err);
       if (!row || !row.embedding) return resolve(null);
-
       try {
         const vector = JSON.parse(row.embedding);
         resolve(vector);
@@ -206,28 +35,114 @@ function getGenreEmbedding(genre) {
   });
 }
 
+// Search Spotify tracks
+async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
+  try {
+    const accessToken = await getAccessToken();
+    const response = await axios.get('https://api.spotify.com/v1/search', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: {
+        q: query,
+        type: 'track',
+        limit: 20,
+      },
+    });
+
+    const tracks = response.data.tracks.items;
+
+    // New: Filter only tracks where artist is in the everynoise database
+    const validTracks = [];
+
+    for (const track of tracks) {
+      const artistName = track.artists[0]?.name;
+      if (!artistName) continue;
+
+      const exists = await new Promise((resolve, reject) => {
+        db.get(`SELECT 1 FROM GenreArtists WHERE artist_name = ?`, [artistName], (err, row) => {
+          if (err) {
+            console.error('Database error checking artist:', err);
+            return resolve(false);
+          }
+          resolve(!!row);
+        });
+      });
+      
+
+      if (exists) {
+        validTracks.push({
+          id: track.id,
+          name: track.name,
+          artists: track.artists.map(a => ({ name: a.name })),
+          album: {
+            name: track.album.name,
+            images: track.album.images,
+          },
+          url: track.external_urls.spotify,
+          preview_url: track.preview_url,
+          explicit: track.explicit,
+        });
+      }
+    }
+
+    return validTracks;
+    
+  } catch (error) {
+    if (retryCount > 0) {
+      console.log(`Retrying searchSpotify in ${retryDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return searchSpotify(query, retryCount - 1, retryDelay * 2);
+    } else {
+      console.error('Error searching Spotify:', error);
+      throw error;
+    }
+  }
+}
+
+
+// Find matching song
 async function findMatchingSongs(song1Id, song2Id) {
   try {
-    const song1Data = await getTrackData(song1Id);
-    const song2Data = await getTrackData(song2Id);
+    console.log(`Matching songs: ${song1Id}, ${song2Id}`);
 
-    const filteredSong1Genres = song1Data.genres ? song1Data.genres.filter(genre => genres.includes(genre)) : [];
-    const filteredSong2Genres = song2Data.genres ? song2Data.genres.filter(genre => genres.includes(genre)) : [];
+    const accessToken = await getAccessToken();
+    const [track1Response, track2Response] = await Promise.all([
+      axios.get(`https://api.spotify.com/v1/tracks/${song1Id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }),
+      axios.get(`https://api.spotify.com/v1/tracks/${song2Id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }),
+    ]);
 
-    if (filteredSong1Genres.length === 0 || filteredSong2Genres.length === 0) {
-      console.log("One or more input songs do not have a valid genre association");
+    const artist1Name = track1Response.data.artists[0]?.name;
+    const artist2Name = track2Response.data.artists[0]?.name;
+
+    if (!artist1Name || !artist2Name) {
+      console.error("Could not fetch artist names.");
       return null;
     }
 
-    const genre1 = filteredSong1Genres[Math.floor(Math.random() * filteredSong1Genres.length)];
-    const genre2 = filteredSong2Genres[Math.floor(Math.random() * filteredSong2Genres.length)];
-    console.log(`Selected genres: ${genre1}, ${genre2}`);
+    const genres1 = await getGenresForArtist(artist1Name);
+    const genres2 = await getGenresForArtist(artist2Name);
 
-    const embedding1 = await getGenreEmbedding(genre1);
-    const embedding2 = await getGenreEmbedding(genre2);
+    console.log(`Genres for song 1: ${genres1}`);
+    console.log(`Genres for song 2: ${genres2}`);
+
+    if (genres1.length === 0 || genres2.length === 0) {
+      console.error('❌ One or both songs have no valid genres.');
+      return null;
+    }
+
+    const song1Genre = genres1[Math.floor(Math.random() * genres1.length)];
+    const song2Genre = genres2[Math.floor(Math.random() * genres2.length)];
+
+    console.log(`Selected genres: ${song1Genre}, ${song2Genre}`);
+
+    const embedding1 = await getGenreEmbedding(song1Genre);
+    const embedding2 = await getGenreEmbedding(song2Genre);
 
     if (!embedding1 || !embedding2) {
-      console.log("Missing embedding data for selected genres.");
+      console.error('❌ Could not find embeddings for input genres.');
       return null;
     }
 
@@ -247,64 +162,71 @@ async function findMatchingSongs(song1Id, song2Id) {
     let highestSim = -1;
 
     for (const { name, vector } of allEmbeddings) {
-      // If the input genres are different, skip if name matches either input genre
-      if (genre1 !== genre2 && (name === genre1 || name === genre2)) {
+      if (song1Genre !== song2Genre && (name === song1Genre || name === song2Genre)) {
         continue;
       }
-    
+
       const sim = cosineSimilarity(avgVector, vector);
-    
+
       if (sim > highestSim) {
         highestSim = sim;
         bestMatch = name;
       }
     }
-    
-    
 
-    const MostSimilarGenre = bestMatch;
-    console.log(`✅ Most similar genre: ${MostSimilarGenre} (similarity: ${highestSim.toFixed(4)})`);
+    console.log(`✅ Most similar genre: ${bestMatch} (similarity: ${highestSim.toFixed(4)})`);
 
-    const genreArtists = await fetchGenreArtists(MostSimilarGenre);
+    const genreArtists = await fetchGenreArtists(bestMatch);
     if (genreArtists.length === 0) {
-      console.log(`⚠️ No artists found for genre: ${MostSimilarGenre}`);
+      console.error(`⚠️ No artists found for genre: ${bestMatch}`);
       return null;
     }
 
     const randomArtist = genreArtists[Math.floor(Math.random() * genreArtists.length)];
-    const matchedSong = await getRandomSongByArtist(randomArtist);
 
-    if (matchedSong) {
-      const matchedSongData = {
-        song: {
-          name: matchedSong.name,
-          artists: matchedSong.artists,
-          album: matchedSong.album,
-          url: matchedSong.url,
-          coverArt: matchedSong.coverArt,
-          preview_url: matchedSong.preview_url,
-          explicit: matchedSong.explicit
-        },
-        inputSongsCoverArt: [song1Data.coverArt, song2Data.coverArt],
-        genreInfo: {
-          genre1,
-          genre2,
-          matchedGenre: MostSimilarGenre,
-          similarityScore: highestSim.toFixed(4)
-        }
-      };
+    const randomTrackResponse = await axios.get(`https://api.spotify.com/v1/search`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: {
+        q: `artist:${randomArtist}`,
+        type: 'track',
+        limit: 10,
+        market: 'US'
+      }
+    });
 
-      console.log('🎧 Matched song data:', JSON.stringify(matchedSongData, null, 2));
-      return matchedSongData;
+    const randomTrack = randomTrackResponse.data.tracks.items[0];
+
+    if (!randomTrack) {
+      console.error(`⚠️ No track found for artist: ${randomArtist}`);
+      return null;
     }
 
-    return null;
+    return {
+      song: {
+        name: randomTrack.name,
+        artists: randomTrack.artists.map(a => ({ name: a.name })),
+        album: {
+          name: randomTrack.album.name,
+          images: randomTrack.album.images,
+        },
+        url: randomTrack.external_urls.spotify,
+        coverArt: randomTrack.album.images[0]?.url || null,
+        preview_url: randomTrack.preview_url,
+        explicit: randomTrack.explicit,
+      },
+      genreInfo: {
+        genre1: song1Genre,
+        genre2: song2Genre,
+        matchedGenre: bestMatch,
+        similarityScore: highestSim.toFixed(4),
+      }
+    };
+
   } catch (error) {
     console.error('❌ Error in findMatchingSongs:', error);
     throw error;
   }
 }
-
 
 module.exports = {
   findMatchingSongs,
