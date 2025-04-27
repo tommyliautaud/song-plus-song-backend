@@ -1,7 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-// Path to your everynoise.db
 const dbPath = path.resolve(__dirname, 'everynoise.db');
 const db = new sqlite3.Database(dbPath);
 
@@ -63,7 +62,6 @@ function getEmbedding(genreName) {
       } else if (!row || !row.embedding) {
         resolve(null);
       } else {
-        // Parse the embedding back into an array
         const embedding = JSON.parse(row.embedding);
         resolve(embedding);
       }
@@ -79,7 +77,7 @@ async function getAllGenresWithEmbeddings() {
       } else {
         const genres = rows.map(row => ({
           name: row.name,
-          embedding: JSON.parse(row.embedding) // embeddings are stored as JSON text
+          embedding: JSON.parse(row.embedding)
         }));
         resolve(genres);
       }

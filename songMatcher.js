@@ -50,7 +50,7 @@ async function searchSpotify(query, retryCount = 3, retryDelay = 1000) {
 
     const tracks = response.data.tracks.items;
 
-    // New: Filter only tracks where artist is in the everynoise database
+    // Filter only tracks where artist is in the everynoise database
     const validTracks = [];
 
     for (const track of tracks) {
@@ -129,7 +129,7 @@ async function findMatchingSongs(song1Id, song2Id) {
     console.log(`Genres for song 2: ${genres2}`);
 
     if (genres1.length === 0 || genres2.length === 0) {
-      console.error('❌ One or both songs have no valid genres.');
+      console.error('One or both songs have no valid genres.');
       return null;
     }
 
@@ -142,7 +142,7 @@ async function findMatchingSongs(song1Id, song2Id) {
     const embedding2 = await getGenreEmbedding(song2Genre);
 
     if (!embedding1 || !embedding2) {
-      console.error('❌ Could not find embeddings for input genres.');
+      console.error('Could not find embeddings for input genres.');
       return null;
     }
 
@@ -174,7 +174,7 @@ async function findMatchingSongs(song1Id, song2Id) {
       }
     }
 
-    console.log(`✅ Most similar genre: ${bestMatch} (similarity: ${highestSim.toFixed(4)})`);
+    console.log(`Most similar genre: ${bestMatch} (similarity: ${highestSim.toFixed(4)})`);
 
     const genreArtists = await fetchGenreArtists(bestMatch);
     if (genreArtists.length === 0) {
@@ -197,7 +197,7 @@ async function findMatchingSongs(song1Id, song2Id) {
     const randomTrack = randomTrackResponse.data.tracks.items[0];
 
     if (!randomTrack) {
-      console.error(`⚠️ No track found for artist: ${randomArtist}`);
+      console.error(`No track found for artist: ${randomArtist}`);
       return null;
     }
 
@@ -223,7 +223,7 @@ async function findMatchingSongs(song1Id, song2Id) {
     };
 
   } catch (error) {
-    console.error('❌ Error in findMatchingSongs:', error);
+    console.error('Error in findMatchingSongs:', error);
     throw error;
   }
 }

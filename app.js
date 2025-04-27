@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const NodeCache = require('node-cache');
-const { findMatchingSongs, searchSpotify } = require('./songMatcher');  // ✅ Fix here
+const { findMatchingSongs, searchSpotify } = require('./songMatcher');
 const SpotifyWebApi = require('spotify-web-api-node');
 
 const app = express();
@@ -54,7 +54,6 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/', limiter);
 
-// const searchSpotifyThrottled = throttle(searchSpotify, 1000, { trailing: false });
 
 
 app.get('/auth/spotify/callback', (req, res) => {
